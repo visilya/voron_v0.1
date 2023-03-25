@@ -11,6 +11,8 @@ MB_NAME=CB1
 #MB_CAN=ce5f75f5c4f0
 #MB_FLASH_DEVICE=0483:df11
 MB_FLASH_DEVICE=/dev/serial/by-id/usb-Klipper_stm32g0b1xx_4A00280011504B4633373520-if00
+MB_PID=1d50
+MB_VID=614e
 
 HEAD_NAME=ebb
 HEAD_CAN=23c5470ece0e
@@ -36,8 +38,8 @@ set_globals
 
 #update_klipper
 $WORKING_DIR/moonraker-env/bin/python -m pip install --upgrade pip
-# update_moonraker
-# update_mainsail
+update_moonraker
+update_mainsail
 #update_fluidd
 #update_klipperscreen
 #update_pgc_for_klipper
@@ -54,6 +56,8 @@ ask=$1
 forceflash=$2
 
 build_klipper() {
+  pid=$3
+  vid=$4
   echo ----------- $1 -----------
   KCONFIG_FILE=$WORKING_DIR/klipper_config/script/klipper_$1.cfg
   if [ ! -f "$KCONFIG_FILE" ]; then
@@ -85,13 +89,16 @@ build_klipper() {
   if [ -f "$KCONFIG_FILE" ]; then
     # sed -i -e '1iOUT=out_'"$1"'/' -e '/OUT=/d' $KCONFIG_FILE
     sed -i -e '/OUT=/d' $KCONFIG_FILE
-    #make clean KCONFIG_CONFIG=$KCONFIG_FILE OUT=out_"$1"/
     if [[ "$2" == "build" ]]; then
-      make KCONFIG_CONFIG=$KCONFIG_FILE OUT=out_"$1"/
+      make clean KCONFIG_CONFIG=$KCONFIG_FILE OUT=out_$1/
+      make KCONFIG_CONFIG=$KCONFIG_FILE OUT=out_$1/
     fi
     if [[ "$2" == "flash" ]]; then
-      dfu-suffix -a out_"$1"/klipper.bin
-      make flash $3 KCONFIG_CONFIG=$KCONFIG_FILE OUT=out_"$1"/
+      make flash $3 KCONFIG_CONFIG=$KCONFIG_FILE OUT=out_$1/
+    fi
+    if [[ "$2" == "add_dfu_suffix" ]]; then
+      dfu-suffix -D $WORKING_DIR/klipper/out_$1/klipper.bin
+      dfu-suffix -p $pid -v $vid -a $WORKING_DIR/klipper/out_$1/klipper.bin
     fi
   fi
 }
@@ -108,12 +115,11 @@ main() {
 
   rm -rf $WORKING_DIR/klipper/out
 
-  # Build klipper
+  echo "Building klipper"
   #build_klipper $MCU_NAME
   build_klipper $MB_NAME build
   build_klipper $HEAD_NAME build
 
-  ### Stoping services
   echo "Stoping services"
   service klipper stop
   #service klipper_mcu stop
@@ -123,16 +129,15 @@ main() {
   #build_klipper $MCU_NAME flash
 
   ### Flash MB
-  build_klipper $MB_NAME flash FLASH_DEVICE=$MB_FLASH_DEVICE
+  build_klipper $MB_NAME add_dfu_suffix $MB_PID $MB_VID || true
+  build_klipper $MB_NAME flash FLASH_DEVICE=$MB_FLASH_DEVICE || true
 
   ### Flash HEAD
   python3 $WORKING_DIR/CanBoot/scripts/flash_can.py -i can0 -f $WORKING_DIR/klipper/out_$HEAD_NAME/klipper.bin -u $HEAD_CAN
 
-  ### List CAN devices
   echo "List CAN devices"
-  $WORKING_DIR/klippy-env/bin/python $WORKING_DIR/klipper/scripts/canbus_query.py can0
+  $WORKING_DIR/klippy-env/bin/python $WORKING_DIR/klipper/scripts/canbus_query.py can0 || true
 
-  ## Starting services
   echo "Starting services"
   #service klipper_mcu start
   service klipper start
