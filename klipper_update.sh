@@ -17,6 +17,9 @@ MB_VID=614e
 HEAD_NAME=ebb
 HEAD_CAN=23c5470ece0e
 
+U2C_NAME=u2c
+U2C_CAN=fac94d38ebcf
+
 WORKING_DIR=/home/biqu
 ### End config ###
 
@@ -119,10 +122,10 @@ main() {
   #build_klipper $MCU_NAME
   build_klipper $MB_NAME build
   build_klipper $HEAD_NAME build
+  build_klipper $U2C_NAME build
 
   echo "Stoping services"
   service klipper stop
-  #service klipper_mcu stop
 
   echo "Flashing"
   ### Flash MCU (rpi)
@@ -134,6 +137,9 @@ main() {
 
   ### Flash HEAD
   python3 $WORKING_DIR/CanBoot/scripts/flash_can.py -i can0 -f $WORKING_DIR/klipper/out_$HEAD_NAME/klipper.bin -u $HEAD_CAN
+
+  ### Flash U2C
+  python3 $WORKING_DIR/CanBoot/scripts/flash_can.py -i can0 -f $WORKING_DIR/klipper/out_$U2C_NAME/klipper.bin -u $U2C_CAN
 
   echo "List CAN devices"
   $WORKING_DIR/klippy-env/bin/python $WORKING_DIR/klipper/scripts/canbus_query.py can0 || true
